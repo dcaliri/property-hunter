@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://property-hunter.local/contracts/listing-v1.schema.json",
+  "title": "Listing Record (v1)",
+  "description": "Normalized listing record emitted by the normalize stage and persisted in listings/observations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "source_listing_id", "source_url", "operation", "barrio", "region", "price_cents", "currency", "observed_at"],
+  "properties": {
+    "source": { "type": "string", "enum": ["inmoup"] },
+    "source_listing_id": { "type": "integer" },
+    "source_url": { "type": "string", "format": "uri" },
+    "operation": { "type": "string", "enum": ["sale", "rent"] },
+    "property_type": { "type": "string", "enum": ["departamento", "casa", "ph", "lote", "oficina", "local", "otro"] },
+    "street_address": { "type": ["string", "null"] },
+    "barrio": { "type": "string" },
+    "region": { "type": "string" },
+    "beds": { "type": ["integer", "null"], "minimum": 0 },
+    "baths": { "type": ["integer", "null"], "minimum": 0 },
+    "covered_area_m2": { "type": ["number", "null"], "minimum": 0 },
+    "total_area_m2": { "type": ["number", "null"], "minimum": 0 },
+    "agency_name": { "type": ["string", "null"] },
+    "description": { "type": ["string", "null"] },
+    "llm_amenity_tags": { "type": ["array", "null"], "items": { "type": "string" } },
+    "date_posted": { "type": ["string", "null"] },
+    "price_cents": { "type": "integer", "minimum": 0 },
+    "currency": { "type": "string", "enum": ["USD", "ARS"] },
+    "raw_price_text": { "type": ["string", "null"] },
+    "observed_at": { "type": "string", "format": "date-time" }
+  }
+}

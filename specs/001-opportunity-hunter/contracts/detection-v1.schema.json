@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://property-hunter.local/contracts/detection-v1.schema.json",
+  "title": "Detection Record (v1)",
+  "description": "Opportunity detection record emitted by the detect stage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["listing_id", "run_id", "baseline_id", "prediction_id", "signals", "score", "status"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "run_id": { "type": "integer" },
+    "baseline_id": { "type": ["integer", "null"] },
+    "prediction_id": { "type": ["integer", "null"] },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "threshold", "observed", "expected", "satisfied"],
+        "properties": {
+          "type": { "type": "string", "enum": ["undervaluation", "yield", "price_drop"] },
+          "threshold": { "type": "number" },
+          "observed": { "type": ["number", "null"] },
+          "expected": { "type": ["number", "null"] },
+          "satisfied": { "type": "boolean" },
+          "model_version_id": { "type": ["integer", "null"] },
+          "is_fallback": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "status": { "type": "string", "enum": ["active", "superseded", "resolved"] },
+    "first_seen_at": { "type": "string", "format": "date-time" },
+    "last_seen_at": { "type": "string", "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

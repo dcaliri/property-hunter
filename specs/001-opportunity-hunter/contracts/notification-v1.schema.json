@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://property-hunter.local/contracts/notification-v1.schema.json",
+  "title": "Notification Record (v1)",
+  "description": "Notification delivery record emitted by the notify stage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["detection_id", "run_id", "channel", "recipient", "status", "attempt_count"],
+  "properties": {
+    "detection_id": { "type": "integer" },
+    "run_id": { "type": "integer" },
+    "channel": { "type": "string", "enum": ["email"] },
+    "recipient": { "type": "string", "format": "email" },
+    "status": { "type": "string", "enum": ["pending", "sent", "failed"] },
+    "attempt_count": { "type": "integer", "minimum": 0 },
+    "last_error": { "type": ["string", "null"] },
+    "sent_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "digest_narrative": { "type": ["string", "null"] },
+    "llm_enriched": { "type": "boolean" }
+  }
+}
