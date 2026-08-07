@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "property-hunter/cloud-status-output-v1",
+  "title": "Cloud status/inventory output (v1)",
+  "description": "JSON emitted by status.sh --json (and up.sh/down.sh --json). Contract for scripts/cloud/*.",
+  "type": "object",
+  "required": ["tool", "version", "generated_at", "environment", "retained", "cost"],
+  "properties": {
+    "tool": { "const": "property-hunter-cloud" },
+    "version": { "const": "v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "environment": {
+      "type": ["object", "null"],
+      "description": "null when deprovisioned",
+      "properties": {
+        "instance_id": { "type": "string" },
+        "instance_type": { "type": "string" },
+        "availability_zone": { "type": "string" },
+        "state": { "enum": ["provisioned", "deployed", "deprovisioned"] },
+        "app_ref": { "type": "string" },
+        "public_access": { "const": "ssm-tunnel" }
+      },
+      "required": ["instance_id", "instance_type", "availability_zone", "state", "app_ref"]
+    },
+    "retained": {
+      "type": "object",
+      "description": "Resources never removed by down",
+      "required": ["state_bucket", "data_volume_id", "data_volume_size_gb"],
+      "properties": {
+        "state_bucket": { "type": "string" },
+        "data_volume_id": { "type": "string" },
+        "data_volume_size_gb": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": ["estimated_usd_month", "budget_usd_month", "over_budget"],
+      "properties": {
+        "estimated_usd_month": { "type": "number", "minimum": 0 },
+        "budget_usd_month": { "type": "number", "minimum": 0 },
+        "over_budget": { "type": "boolean" },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
