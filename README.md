@@ -28,7 +28,7 @@ Each stage is an independent command and also runs together via `run-all`
 (sharing a single `runs` row). `scheduler` runs the whole pipeline on a daily
 cron inside the container.
 
-**Status:** v1 complete — all 71 implementation tasks done, 62 tests passing
+**Status:** v1 complete — all implementation tasks done, 81 tests passing
 (see [Specs](#specs-and-design-documents)).
 
 ---
@@ -151,12 +151,23 @@ elsewhere as you wish.
 | `detect` | — | Evaluate rules, write `detections` with signal JSON, supersede prior detections |
 | `notify` | — | Email one digest per run covering pending detections; retries with backoff; one `notifications` row per detection |
 | `scheduler` | — | Block and run `run-all` once daily (APScheduler cron, UTC) |
+| `ui` | `--host 127.0.0.1`, `--port 8000` | Serve the local read-only web dashboard (stdlib only) |
 
 Example: a custom scope on `collect`:
 
 ```sh
 uv run property_hunter collect --scope casas-en-venta-en-capital-federal
 ```
+
+### Dashboard
+
+`uv run property_hunter ui` serves a zero-dependency read-only dashboard of
+the database — listings (filter/sort/search, ask vs estimated value, barrio,
+coordinates), detections (signals, score, notification status), baselines,
+runs, model versions, and notifications. It binds to `127.0.0.1` by default
+and queries the SQLite file directly (opened read-only); the page auto-loads
+and has a manual refresh button. Run it in a separate terminal while the
+scheduler container runs.
 
 ---
 
@@ -247,7 +258,7 @@ All data lives in one SQLite database (WAL mode). Main tables:
 | --- | --- |
 | `runs` | One row per pipeline pass (trigger, started/finished, status `ok`/`partial`/`failed`) |
 | `pages` | Fetched pages with URL, status, timestamp, and raw gzipped HTML snapshot (provenance) |
-| `listings` | Canonical listings (identity = inmoup `inmuebles/{id}`), address, price, area, attributes, zone, `is_active` |
+| `listings` | Canonical listings (identity = inmoup `inmuebles/{id}`), address, price, area, attributes, zone (`barrio`/`region`), exact map-marker `lat`/`lng`, `is_active` |
 | `observations` | Per-run price observations |
 | `price_history` | Append-only price changes (old, new, currency, observed_at) |
 | `zones` | Region + barrio combination |
@@ -302,7 +313,7 @@ src/property_hunter/
   models.py                 pydantic records
   db.py                     SQLite repository (DDL, upserts, versioned rows)
   normalize.py              canonicalization, identity, zone assignment
-  ingest/                   polite HTTP client, inmoup fetchers, JSON-LD extract
+  ingest/                   polite HTTP client, inmoup fetchers, RSC + JSON-LD extract
   analyze.py                per-zone baselines
   ml/                       features, HistGradientBoostingRegressor, predict + fallback
   detect.py                 opportunity rules
@@ -316,10 +327,17 @@ specs/001-opportunity-hunter/  design documents (see below)
 
 ## Known behaviors
 
-- **Pagination:** inmoup re-embeds the first page of listings in its SEO
-  JSON-LD on every page, so p1/p2 overlap. A run therefore stops at the first
-  page that yields no *new* listing ids, which typically means a single run
-  collects ~24 unique listings even though `MAX_PAGES_PER_SEARCH` is high.
+- **Pagination:** inmoup re-embeds the first page of listings in both its
+  JSON-LD and its RSC payload on every page, so p1/p2 overlap. A run therefore
+  stops at the first page that yields no *new* listing ids, which typically
+  means a single run collects ~24 unique listings even though
+  `MAX_PAGES_PER_SEARCH` is high.
+- **Location/barrio:** a listing's `barrio` is its own `localidad` as
+  published by inmoup (the same geocoding that places the map marker); the
+  exact map-marker coordinates are stored on each listing (`lat`/`lng`) for
+  verification. The real-estate agency's office address is never used — it
+  differs from the property's location (an early run mis-barrio'd listings to
+  the agency's neighborhood).
 - **Unknown barrios:** listings whose barrio is not recognized are bucketed
   into a fallback zone by region instead of being dropped.
 - **Notifications without SMTP:** `notify` (and `run-all`) will attempt
