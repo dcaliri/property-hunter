@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    image: property-hunter:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: scheduler

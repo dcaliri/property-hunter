@@ -1,0 +1,38 @@
+[project]
+name = "property-hunter"
+version = "0.1.0"
+description = "Single-user real-estate opportunity hunter scanning inmoup.com.ar (personal investment research)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx>=0.27,<1",
+    "parsel>=1.9,<2",
+    "pydantic>=2.7,<3",
+    "python-dotenv>=1.0,<2",
+    "APScheduler>=3.10,<4",
+    "scikit-learn>=1.5,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-timeout>=2.3,<3",
+    "jsonschema>=4,<5",
+]
+
+[project.scripts]
+property_hunter = "property_hunter.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/property_hunter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 300
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["property_hunter"]

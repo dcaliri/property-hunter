@@ -1,0 +1,21 @@
+# --- Docker ---
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+.env
+.env.*
+data/
+tests/
+specs/
+.opencode/
+.specify/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.DS_Store
