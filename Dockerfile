@@ -8,6 +8,7 @@ WORKDIR /app
 
 COPY pyproject.toml ./
 COPY src ./src
+COPY docker-compose.cloud.yml /app/docker-compose.cloud.yml
 
 RUN pip install --no-cache-dir .
 

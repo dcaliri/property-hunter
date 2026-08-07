@@ -15,9 +15,20 @@ htmlcov/
 .env
 .env.*
 !.env.example
+!.env.cloud.example
 
 # --- Data (SQLite + raw snapshots) ---
 data/
+
+# --- Cloud infra (feature 002) ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/aws/.bootstrap.env
+
+# --- Session context ---
+PROMPT.md
 
 # --- Spec kit internals ---
 .specify/

@@ -1,0 +1,20 @@
+services:
+  scheduler:
+    image: ${APP_IMAGE:?APP_IMAGE must be set to the deployed image}
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ${DATA_DIR:-/opt/property-hunter/data}:/app/data
+    command: scheduler
+
+  ui:
+    image: ${APP_IMAGE:?APP_IMAGE must be set to the deployed image}
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ${DATA_DIR:-/opt/property-hunter/data}:/app/data
+    command: ui --port 9000
+    ports:
+      - "127.0.0.1:9000:9000"

@@ -138,6 +138,96 @@ elsewhere as you wish.
 
 ---
 
+## Deploy to AWS (cloud lifecycle)
+
+A CLI-only lifecycle for running the pipeline in the cloud, provisioned with
+Infrastructure-as-Code. One command provisions + deploys (scheduler + dashboard
++ persistent SQLite on a retained EBS volume), one command deprovisions, and
+weekly cycles keep 100% of your data. Full validation guide:
+[specs/002-cloud-provision-deploy/quickstart.md](specs/002-cloud-provision-deploy/quickstart.md).
+
+**Design in brief** (see [research.md](specs/002-cloud-provision-deploy/research.md)):
+
+- One ARM EC2 instance (`t4g.small` under the free trial, else `t4g.micro`)
+  running the app image via docker compose. No SSH keys, no public dashboard:
+  the UI binds `127.0.0.1:9000` and is reached through an SSM port-forward.
+- App image is built locally, pushed to ECR, and pulled on the instance — deploys
+  are pinned to a git ref, so `deploy.sh --ref <ref>` rolls back without
+  re-provisioning.
+- SQLite lives on a retained `gp3` EBS volume (tagged `property-hunter-data`)
+  that `down` never deletes; it detaches and reattaches each cycle.
+- Terraform state lives in a versioned S3 bucket; secrets live in SSM Parameter
+  Store (`/property-hunter/*`, `SecureString`) — never in the repo.
+
+### Prerequisites
+
+- AWS account with billing + IAM, AWS CLI v2, and the
+  [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+- OpenTofu **or** Terraform ≥ 1.7, Docker, git, and Python 3.12 (for JSON output).
+- Budget: **USD 5.25/mo** at the 20 GiB default during the t4g free-trial window
+  (20 GiB EBS $1.60 + public IPv4 ~$3.65 for outbound egress; see the cost note
+  below). Use `bootstrap.sh --volume-size 10` to land at **USD 4.45/mo** and stay
+  under the USD 5 budget.
+
+### One-time setup (per account)
+
+```sh
+# Static validation of the IaC (no AWS resources created):
+./scripts/cloud/check.sh
+
+# Creates the retained S3 state bucket + EBS volume + ECR repo (never removed by down):
+./scripts/cloud/bootstrap.sh --bucket <globally-unique-name> --az us-east-1a --volume-size 20
+
+# Push your local .env (git-ignored) into SSM Parameter Store:
+./scripts/cloud/secrets.sh push
+```
+
+### Weekly lifecycle
+
+```sh
+./scripts/cloud/up.sh --bucket <name> --auto-approve   # provision + deploy
+./scripts/cloud/dashboard.sh                           # SSM tunnel → http://localhost:9000
+./scripts/cloud/status.sh --json                       # inventory + estimated cost
+./scripts/cloud/deploy.sh --ref <old-tag>              # mid-cycle rollback (no re-provision)
+./scripts/cloud/down.sh --bucket <name> --yes          # deprovision; data is kept
+```
+
+`down.sh` leaves the bucket, volume, and ECR repo intact; the next `up.sh`
+reattaches the same volume, so collected listings/runs are still there. Add
+`--wipe-data` to `down.sh` (double-confirmed, never implicit) for a truly fresh
+start. Everything is idempotent — re-running `up.sh` while up or `down.sh` while
+down is a clean no-op.
+
+### Budget note
+
+`status.sh` reports the estimated monthly cost against the **USD 5/mo** budget.
+Compute (`t4g.small`) is free through the trial (until 2026-12-31); the EBS
+volume is always billed (~$0.08/GiB-mo); a public IPv4 is needed for outbound
+SSM/ECR/app traffic and bills ~$3.65/mo while the instance runs (it may be
+covered by your account's public-IPv4 free allowance — verify in the console).
+At the 20 GiB default the estimate is ~$5.25/mo (marginally over budget); a
+10 GiB volume (0.80/mo) brings it to ~$4.45/mo. Nothing is exposed: the security
+group has **no inbound rules** and the dashboard binds to `127.0.0.1`.
+Part-time weekly cycles (up Mon–Thu, down Fri) cost less.
+
+### CLI reference (cloud)
+
+| Command | What it does |
+| --- | --- |
+| `scripts/cloud/check.sh` | Static validation: `terraform fmt -check`, `validate`, `sh -n` |
+| `scripts/cloud/bootstrap.sh` | One-time retained S3 bucket + EBS volume + ECR repo |
+| `scripts/cloud/secrets.sh <push\|pull\|list>` | Manage SSM `/property-hunter/*` secrets |
+| `scripts/cloud/up.sh` | Provision + deploy (build image, apply, SSM deploy, health check) |
+| `scripts/cloud/deploy.sh` | Redeploy/rollback at a git ref via SSM |
+| `scripts/cloud/dashboard.sh` | Open the SSM port-forward tunnel to the dashboard |
+| `scripts/cloud/status.sh` | Inventory + estimated cost (`--json` per the status schema) |
+| `scripts/cloud/down.sh` | Deprovision; retained resources kept (`--wipe-data` to reset) |
+
+`up.sh`/`down.sh`/`status.sh` support `--json`; output validates against
+[`contracts/status-output-v1.schema.json`](specs/002-cloud-provision-deploy/contracts/status-output-v1.schema.json).
+
+---
+
 ## CLI reference
 
 | Command | Flags | What it does |

@@ -1,0 +1,30 @@
+{
+  "tool": "property-hunter-cloud",
+  "version": "v1",
+  "generated_at": "2026-08-07T12:00:00Z",
+  "environment": {
+    "instance_id": "i-0abc123def456",
+    "instance_type": "t4g.small",
+    "availability_zone": "us-east-1a",
+    "state": "deployed",
+    "app_ref": "HEAD",
+    "public_access": "ssm-tunnel"
+  },
+  "retained": {
+    "state_bucket": "property-hunter-state-bucket",
+    "data_volume_id": "vol-0abc123def456",
+    "data_volume_size_gb": 10
+  },
+  "cost": {
+    "estimated_usd_month": 4.45,
+    "budget_usd_month": 5,
+    "over_budget": false,
+    "assumptions": [
+      "EBS gp3 10 GiB at $0.08/GiB-mo (billed while retained)",
+      "Compute t4g.small: free under the t4g free-trial window until 2026-12-31, else on-demand 24/7",
+      "Public IPv4 ~$3.65/mo while the instance runs (outbound egress for SSM/ECR/app); may be covered by the account free allowance",
+      "S3 state + SSM parameters ≈ $0.00/mo",
+      "24/7 running assumed; part-time weekly cycles cost less"
+    ]
+  }
+}
