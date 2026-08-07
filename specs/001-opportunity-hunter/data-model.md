@@ -49,8 +49,10 @@ Canonical properties. Identity: `source` + `source_listing_id` unique.
 | operation         | TEXT     | `sale` \| `rent`                                 |
 | property_type     | TEXT     | `departamento` \| `casa` \| `ph` \| `lote` \| …  |
 | street_address    | TEXT     | nullable; from detail page                       |
-| barrio            | TEXT     | neighborhood (zone key, part 1)                  |
+| barrio            | TEXT     | neighborhood (zone key, part 1); the property's `localidad` per the source (never the agency's address) |
 | region            | TEXT     | locality/province (zone key, part 2, e.g. "Capital Federal") |
+| lat               | REAL     | nullable; exact map-marker latitude from list-page `coordenadas`, kept for verification/audit |
+| lng               | REAL     | nullable; exact map-marker longitude from list-page `coordenadas` |
 | beds              | INTEGER  | nullable                                         |
 | baths             | INTEGER  | nullable                                         |
 | covered_area_m2   | REAL     | nullable; "Superficie" from list page             |

@@ -21,6 +21,8 @@ def _record(**overrides) -> ListingRecord:
         property_type="departamento",
         barrio="Palermo",
         region="Capital Federal",
+        lat=-34.6118561,
+        lng=-58.4245777,
         beds=1,
         baths=1,
         covered_area_m2=60.0,

@@ -20,6 +20,8 @@ def _age_days(row) -> float:
         dt = datetime.fromisoformat(str(date_posted))
     except ValueError:
         return 0.0
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400)
 
 

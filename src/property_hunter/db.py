@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS listings (
     street_address TEXT,
     barrio TEXT,
     region TEXT,
+    lat REAL,
+    lng REAL,
     beds INTEGER,
     baths INTEGER,
     covered_area_m2 REAL,
@@ -196,6 +198,16 @@ def connect(db_path: Path) -> sqlite3.Connection:
 def init_db(db_path: Path) -> None:
     with connect(db_path) as conn:
         conn.executescript(DDL)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotent column additions for databases created by earlier builds."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(listings)")}
+    if "lat" not in cols:
+        conn.execute("ALTER TABLE listings ADD COLUMN lat REAL")
+    if "lng" not in cols:
+        conn.execute("ALTER TABLE listings ADD COLUMN lng REAL")
 
 
 class Repository:
@@ -258,13 +270,13 @@ class Repository:
             cur = self.conn.execute(
                 """INSERT INTO listings (
                        source, source_listing_id, source_url, operation, property_type,
-                       street_address, barrio, region, beds, baths, covered_area_m2, total_area_m2,
+                       street_address, barrio, region, lat, lng, beds, baths, covered_area_m2, total_area_m2,
                        agency_name, description, date_posted, first_seen_at, last_seen_at,
                        is_active, created_at, updated_at
-                   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
+                   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
                 (
                     rec.source, rec.source_listing_id, rec.source_url, rec.operation, rec.property_type,
-                    rec.street_address, rec.barrio, rec.region, rec.beds, rec.baths,
+                    rec.street_address, rec.barrio, rec.region, rec.lat, rec.lng, rec.beds, rec.baths,
                     rec.covered_area_m2, rec.total_area_m2, rec.agency_name, rec.description,
                     rec.date_posted, rec.observed_at, rec.observed_at, rec.observed_at, rec.observed_at,
                 ),
@@ -273,13 +285,14 @@ class Repository:
         listing_id = int(row["id"])
         self.conn.execute(
             """UPDATE listings SET source_url=?, operation=?, property_type=?, street_address=?,
-                   barrio=?, region=?, beds=?, baths=?, covered_area_m2=?, total_area_m2=?,
+                   barrio=?, region=?, lat=?, lng=?, beds=?, baths=?, covered_area_m2=?, total_area_m2=?,
                    agency_name=?, description=?, date_posted=?, last_seen_at=?, is_active=1, updated_at=?
                WHERE id=?""",
             (
                 rec.source_url, rec.operation, rec.property_type, rec.street_address,
-                rec.barrio, rec.region, rec.beds, rec.baths, rec.covered_area_m2, rec.total_area_m2,
-                rec.agency_name, rec.description, rec.date_posted, rec.observed_at, rec.observed_at,
+                rec.barrio, rec.region, rec.lat, rec.lng, rec.beds, rec.baths,
+                rec.covered_area_m2, rec.total_area_m2, rec.agency_name, rec.description,
+                rec.date_posted, rec.observed_at, rec.observed_at,
                 listing_id,
             ),
         )

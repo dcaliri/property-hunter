@@ -289,6 +289,146 @@ def test_notify_llm_narrative(db_path):
     assert plain_rows[0]["digest_narrative"] is None
 
 
+def test_collect_via_api_pagination(db_path, monkeypatch):
+    """Live collector paginates through the site's JSON API via the SSR filter state.
+
+    The SSR page embeds the search ``filters`` and only ever renders the first
+    page of items; the real data comes from ``POST /server/inmuebles/buscar``,
+    which honors ``page`` and reports ``total`` (research §2).
+    """
+    import json
+
+    from tests.conftest import load_fixture
+    from property_hunter.ingest.extract import parse_rsc_list_payload
+
+    settings = _make_settings(db_path)
+    repo = _repo(db_path)
+
+    ssr_page = load_fixture("list_caba_deptos_venta_p1.html")
+    ssr_items = parse_rsc_list_payload(ssr_page)
+    ssr_ids = {it["id"] for it in ssr_items}
+
+    class FakeAPI:
+        def __init__(self, total, page_size):
+            self.total = total
+            self.page_size = page_size
+            self.calls = 0
+
+        def __call__(self, url, payload):
+            assert url.endswith("/server/inmuebles/buscar")
+            self.calls += 1
+            page = payload["page"]
+            start = (page - 1) * self.page_size
+            items = []
+            for i in range(self.page_size):
+                n = start + i
+                if n >= self.total:
+                    break
+                items.append({
+                    "id": 1_000_000 + n,
+                    "precio": 5_000_000 + n,
+                    "dolar": 1,
+                    "coordenadas": "-34.60, -58.40",
+                    "localidad": "Palermo",
+                    "provincia": "Capital Federal",
+                    "direccion": f"Calle {n}",
+                    "slug": f"departamento-en-calle-{n}",
+                    "descripcion": f"Depto {n}",
+                    "fechaPublicacion": "2026-07-01 12:00:00",
+                    "inmobiliaria": {"id": 1, "nombre": "Agencia A", "slug": "agencia-a"},
+                    "servicios": [],
+                })
+            body = json.dumps({"inmuebles": items, "total": self.total}).encode()
+            return 200, body
+
+    api = FakeAPI(total=50, page_size=24)
+
+    def fake_make_fetcher(config, offline=False, fixtures=None):
+        return (lambda url: (200, ssr_page.encode())), api
+
+    monkeypatch.setattr("property_hunter.pipeline.make_fetcher", fake_make_fetcher)
+
+    summary = run_collect(settings, repo, offline=False)
+
+    assert summary["fetched_pages"] == 3  # 1 SSR + 2 API pages (24 + 24 + 2 = 50)
+    assert api.calls == 2
+    assert summary["new_listings"] == 24 + (50 - 24)
+    assert len(repo.active_listings()) == 50
+
+    api_ids = {l["source_listing_id"] for l in repo.active_listings()}
+    assert ssr_ids <= api_ids
+    # API pages start at page 2 (SSR page 1 already covered the first 24 items).
+    assert {1_000_000 + n for n in range(24, 50)} <= api_ids
+
+
+def test_collect_rerun_keeps_everything_active(db_path, monkeypatch):
+    """A re-run must not delist listings: completion counts newly-seen ids.
+
+    Regression: the completion signal used to count *genuinely new* listings,
+    which is 0 on every page of a re-run — pagination stopped immediately and
+    ``mark_inactive_unseen`` marked the previously collected listings inactive.
+    """
+    import json
+
+    from tests.conftest import load_fixture
+    from property_hunter.ingest.extract import parse_rsc_list_payload
+
+    settings = _make_settings(db_path)
+    repo = _repo(db_path)
+
+    ssr_page = load_fixture("list_caba_deptos_venta_p1.html")
+
+    class FakeAPI:
+        def __init__(self, total, page_size):
+            self.total = total
+            self.page_size = page_size
+            self.calls = 0
+
+        def __call__(self, url, payload):
+            self.calls += 1
+            page = payload["page"]
+            start = (page - 1) * self.page_size
+            items = []
+            for i in range(self.page_size):
+                n = start + i
+                if n >= self.total:
+                    break
+                items.append({
+                    "id": 1_000_000 + n,
+                    "precio": 5_000_000 + n,
+                    "dolar": 1,
+                    "coordenadas": "-34.60, -58.40",
+                    "localidad": "Palermo",
+                    "provincia": "Capital Federal",
+                    "direccion": f"Calle {n}",
+                    "slug": f"departamento-en-calle-{n}",
+                    "descripcion": f"Depto {n}",
+                    "fechaPublicacion": "2026-07-01 12:00:00",
+                    "inmobiliaria": {"id": 1, "nombre": "Agencia A", "slug": "agencia-a"},
+                    "servicios": [],
+                })
+            body = json.dumps({"inmuebles": items, "total": self.total}).encode()
+            return 200, body
+
+    api = FakeAPI(total=50, page_size=24)
+    monkeypatch.setattr(
+        "property_hunter.pipeline.make_fetcher",
+        lambda config, offline=False, fixtures=None: ((lambda url: (200, ssr_page.encode())), api),
+    )
+
+    first = run_collect(settings, repo, offline=False)
+    assert first["new_listings"] == 50
+
+    api.calls = 0
+    second = run_collect(settings, repo, offline=False)
+
+    assert second["new_listings"] == 0            # nothing genuinely new
+    assert second["delisted"] == 0                # nothing incorrectly delisted
+    assert api.calls == 2                         # pagination still runs to completion
+    assert len(repo.active_listings()) == 50
+    assert repo.conn.execute("SELECT COUNT(*) FROM listings WHERE is_active=0").fetchone()[0] == 0
+
+
 def _make_settings(db_path, *, min_obs=None, min_train_samples=None):
     from property_hunter.config import Settings
 

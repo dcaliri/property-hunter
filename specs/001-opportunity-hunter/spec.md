@@ -97,6 +97,7 @@ After each detection pass, the system notifies the user of newly identified oppo
 
 - **FR-001**: The system MUST periodically collect property listings from inmoup.com.ar within a configured geographic area of Argentina, covering both for-sale and for-rent listings.
 - **FR-002**: The system MUST extract, for each listing, at minimum: address, neighborhood/barrio, locality, current asking price (US dollars) or rent, home attributes (beds, baths, covered/total m², type), listing URL, and the listing's unique identifier as published by the source.
+- **FR-002b**: The system MUST record the property's exact map-marker coordinates (latitude/longitude) with each listing and derive the zone (barrio) from the property's own locality as published by the source — never from the agency's office address.
 - **FR-003**: The system MUST persist every listing with provenance: source, original URL, retrieval timestamp, and a reference to the raw data as retrieved.
 - **FR-004**: The system MUST identify a stable identity per property (using the source listing identifier) so repeat observations update the same record rather than creating duplicates.
 - **FR-005**: The system MUST record asking-price changes over time as an append-only price history per property.

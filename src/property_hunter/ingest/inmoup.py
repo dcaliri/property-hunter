@@ -5,6 +5,9 @@ from __future__ import annotations
 from property_hunter.ingest.client import PoliteClient
 
 BASE_URL = "https://inmoup.com.ar"
+SEARCH_ENDPOINT = BASE_URL + "/server/inmuebles/buscar"
+
+LIMIT = 24
 
 
 def build_search_url(operation_slug: str, type_slug: str, region_slug: str, page: int = 1) -> str:
@@ -41,9 +44,20 @@ def _page_number(url: str) -> int:
         return 1
 
 
-def make_fetch(config, offline: bool = False, fixtures: list[bytes] | None = None):
-    """Return a callable ``fetch(url) -> (status_code, body)`` honoring politeness."""
+def make_fetcher(config, offline: bool = False, fixtures: list[bytes] | None = None):
+    """Return ``(fetch, search)``.
+
+    ``fetch`` is ``(url) -> (status, body)`` for SSR pages; ``search`` is
+    ``(filters, page, limit) -> (status, body)`` for the site's JSON API
+    (``POST /server/inmuebles/buscar``). ``search`` is ``None`` offline.
+    """
     if offline:
-        return OfflineReader(fixtures or []).get
+        reader = OfflineReader(fixtures or [])
+        return reader.get, None
     client = PoliteClient(config)
-    return client.get
+    return client.get, client.post_json
+
+
+def search_payload(filters: dict, page: int, limit: int = LIMIT) -> dict:
+    """Build the request body for the site's search API (research §2)."""
+    return {"filtros": filters, "page": page, "limit": limit}

@@ -36,13 +36,19 @@ class PoliteClient:
             time.sleep(wait)
         self._last_request_at = time.monotonic()
 
-    def get(self, url: str) -> tuple[int, bytes]:
+    def _request(self, method: str, url: str, *, json_body: dict | None = None,
+                 headers: dict | None = None) -> tuple[int, bytes]:
         last_status = 0
         last_body = b""
+        kwargs: dict = {}
+        if json_body is not None:
+            kwargs["json"] = json_body
+        if headers:
+            kwargs["headers"] = headers
         for attempt in range(1, self.config.max_retries + 1):
             self._throttle()
             try:
-                resp = self._client.get(url)
+                resp = self._client.request(method, url, **kwargs)
             except httpx.HTTPError as exc:
                 logger.warning("request failed (attempt %d/%d)", attempt, self.config.max_retries,
                                extra={"ctx_url": url, "ctx_error": str(exc)})
@@ -61,6 +67,19 @@ class PoliteClient:
                 continue
             return resp.status_code, resp.content
         return last_status, last_body
+
+    def get(self, url: str) -> tuple[int, bytes]:
+        return self._request("GET", url)
+
+    def post_json(self, url: str, payload: dict) -> tuple[int, bytes]:
+        """POST JSON to the site's client API (inmoup search endpoint).
+
+        The site's Next.js API requires ``Origin``/``Referer`` headers and
+        rejects requests without them (research §2).
+        """
+        return self._request(
+            "POST", url, json_body=payload,
+            headers={"Origin": "https://inmoup.com.ar", "Referer": "https://inmoup.com.ar/"})
 
     def close(self) -> None:
         self._client.close()

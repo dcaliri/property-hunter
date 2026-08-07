@@ -26,6 +26,8 @@ class ListingRecord(BaseModel):
     street_address: str | None = None
     barrio: str
     region: str
+    lat: float | None = None
+    lng: float | None = None
     beds: int | None = Field(default=None, ge=0)
     baths: int | None = Field(default=None, ge=0)
     covered_area_m2: float | None = Field(default=None, ge=0)

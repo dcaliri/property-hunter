@@ -64,6 +64,66 @@ def test_delisted_marked_inactive_history_preserved(repo):
     assert repo.get_listing(lid) is not None
 
 
+def test_upsert_persists_coordinates(repo):
+    import pytest
+
+    rec = _listing(5, 100000)
+    rec.lat = -34.6118561
+    rec.lng = -58.4245777
+    lid = repo.upsert_listing(rec)
+
+    row = repo.get_listing(lid)
+    assert row["lat"] == pytest.approx(-34.6118561)
+    assert row["lng"] == pytest.approx(-58.4245777)
+
+
+def test_init_db_migrates_lat_lng(tmp_path):
+    import sqlite3
+
+    from property_hunter.db import init_db
+
+    path = tmp_path / "pre_coords.db"
+    conn = sqlite3.connect(path)
+    conn.execute("""
+        CREATE TABLE listings (
+            id INTEGER PRIMARY KEY,
+            source TEXT NOT NULL,
+            source_listing_id INTEGER NOT NULL,
+            source_url TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            property_type TEXT,
+            street_address TEXT,
+            barrio TEXT,
+            region TEXT,
+            beds INTEGER,
+            baths INTEGER,
+            covered_area_m2 REAL,
+            total_area_m2 REAL,
+            agency_name TEXT,
+            description TEXT,
+            date_posted TEXT,
+            llm_amenity_tags TEXT,
+            llm_tags_updated_at TEXT,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(source, source_listing_id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+    init_db(path)
+
+    conn = sqlite3.connect(path)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(listings)")}
+    conn.close()
+    assert "lat" in cols
+    assert "lng" in cols
+
+
 def test_detection_supersede(repo):
     from property_hunter.models import DetectionRecord, Signal
 
