@@ -90,4 +90,10 @@ def run_command(args: argparse.Namespace, settings: Settings) -> int:
         run_scheduler(settings)
         return 0
 
+    if command == "ui":
+        from property_hunter.ui import serve
+
+        serve(settings, host=args.host, port=args.port)
+        return 0
+
     raise SystemExit(f"unknown command: {command}")

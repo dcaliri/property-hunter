@@ -39,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("notify", help="Email digest of new opportunities")
     sub.add_parser("scheduler", help="Run the daily scheduler")
 
+    p_ui = sub.add_parser("ui", help="Serve the local read-only web dashboard")
+    p_ui.add_argument("--host", default="127.0.0.1")
+    p_ui.add_argument("--port", type=int, default=8000)
+
     return parser
 
 
