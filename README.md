@@ -149,8 +149,11 @@ weekly cycles keep 100% of your data. Full validation guide:
 **Design in brief** (see [research.md](specs/002-cloud-provision-deploy/research.md)):
 
 - One ARM EC2 instance (`t4g.small` under the free trial, else `t4g.micro`)
-  running the app image via docker compose. No SSH keys, no public dashboard:
-  the UI binds `127.0.0.1:9000` and is reached through an SSM port-forward.
+  running the app image via docker compose. No SSH keys: access is through SSM,
+  and the dashboard is exposed on the internet only through a **Caddy gateway**
+  (`https://property-hunter.diegocaliri.com.ar`) that terminates HTTPS and asks
+  for HTTP Basic Auth before proxying to the UI (which binds `127.0.0.1:9000`).
+  The SSM port-forward tunnel (`dashboard.sh`) remains as the alternative path.
 - App image is built locally, pushed to ECR, and pulled on the instance — deploys
   are pinned to a git ref, so `deploy.sh --ref <ref>` rolls back without
   re-provisioning.
@@ -186,6 +189,7 @@ weekly cycles keep 100% of your data. Full validation guide:
 
 ```sh
 ./scripts/cloud/up.sh --bucket <name> --auto-approve   # provision + deploy
+open https://property-hunter.diegocaliri.com.ar           # Caddy gateway + Basic Auth popup
 ./scripts/cloud/dashboard.sh                           # SSM tunnel → http://localhost:9000
 ./scripts/cloud/status.sh --json                       # inventory + estimated cost
 ./scripts/cloud/deploy.sh --ref <old-tag>              # mid-cycle rollback (no re-provision)
@@ -206,8 +210,9 @@ volume is always billed (~$0.08/GiB-mo); a public IPv4 is needed for outbound
 SSM/ECR/app traffic and bills ~$3.65/mo while the instance runs (it may be
 covered by your account's public-IPv4 free allowance — verify in the console).
 At the 20 GiB default the estimate is ~$5.25/mo (marginally over budget); a
-10 GiB volume (0.80/mo) brings it to ~$4.45/mo. Nothing is exposed: the security
-group has **no inbound rules** and the dashboard binds to `127.0.0.1`.
+10 GiB volume (0.80/mo) brings it to ~$4.45/mo. Only 80/443 are exposed, and
+only to the Caddy gateway, which enforces HTTPS + Basic Auth; the dashboard
+itself stays bound to `127.0.0.1` behind it.
 Part-time weekly cycles (up Mon–Thu, down Fri) cost less.
 
 ### CLI reference (cloud)

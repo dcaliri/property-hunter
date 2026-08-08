@@ -64,12 +64,29 @@ resource "aws_route_table_association" "main" {
   route_table_id = aws_route_table.main.id
 }
 
-# Security group: NO inbound rules (SSM requires none; the dashboard binds
-# 127.0.0.1 inside the instance). Default egress allowed.
+# Security group: only 80/443 reach the Caddy gateway (HTTPS + Let's Encrypt
+# HTTP-01 challenge). The dashboard itself stays bound to the internal network
+# behind Caddy's Basic Auth; SSM needs no inbound rules. Default egress allowed.
+# NOTE: the description below must stay as-is — aws_security_group.description is
+# ForceNew, so editing it would replace the SG and briefly drop instance traffic.
 resource "aws_security_group" "main" {
   name        = "property-hunter"
   description = "No inbound rules; outbound egress only"
   vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   egress {
     from_port   = 0
@@ -174,6 +191,13 @@ resource "aws_instance" "app" {
 
   root_block_device {
     volume_type = "gp3"
+  }
+
+  # user_data is the first-boot bootstrap only: redeploys ship the current
+  # remote-deploy.sh over SSM (deploy.sh), so edits to it must NOT force an
+  # instance replacement (which would churn the public IP / DNS).
+  lifecycle {
+    ignore_changes = [user_data]
   }
 
   tags = {

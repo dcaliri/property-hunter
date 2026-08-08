@@ -127,13 +127,14 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 log "pulling $APP_IMAGE"
 docker pull "$APP_IMAGE" >/dev/null
 
-# --- Compose file ships inside the image; extract fresh each deploy -----------
+# --- Compose file + Caddyfile ship inside the image; extract fresh each deploy --
 cid="$(docker create "$APP_IMAGE")"
 docker cp "$cid":/app/docker-compose.cloud.yml "$COMPOSE_DIR/docker-compose.cloud.yml"
+docker cp "$cid":/app/Caddyfile "$COMPOSE_DIR/Caddyfile"
 docker rm "$cid" >/dev/null
 
 # --- Start the app -----------------------------------------------------------
-log "starting scheduler + ui via compose"
+log "starting scheduler + ui + caddy via compose"
 cd "$COMPOSE_DIR"
 APP_IMAGE="$APP_IMAGE" DATA_DIR="$DATA_DIR" docker compose -f docker-compose.cloud.yml up -d
 

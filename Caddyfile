@@ -1,0 +1,26 @@
+# Internet-facing dashboard gateway (Caddy reverse proxy).
+#
+# This file is baked into the app image and copied to the instance by
+# remote-deploy.sh, then mounted into the `caddy` container. It:
+#   - terminates HTTPS (Let's Encrypt certs for property-hunter.diegocaliri.com.ar)
+#   - prompts for HTTP Basic Auth (credentials from SSM / .env)
+#   - proxies to the `ui` container (which stays bound to the internal network)
+#
+# The dashboard is otherwise unreachable from the internet: the security group
+# only opens 80/443 to the world.
+
+property-hunter.diegocaliri.com.ar {
+	reverse_proxy ui:9000
+
+	basic_auth {
+		{$UI_BASIC_AUTH_USER} {$UI_BASIC_AUTH_HASH}
+	}
+
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+	}
+}
