@@ -145,6 +145,8 @@ Infrastructure-as-Code. One command provisions + deploys (scheduler + dashboard
 + persistent SQLite on a retained EBS volume), one command deprovisions, and
 weekly cycles keep 100% of your data. Full validation guide:
 [specs/002-cloud-provision-deploy/quickstart.md](specs/002-cloud-provision-deploy/quickstart.md).
+Complete inventory of every AWS resource and how they interconnect:
+[specs/002-cloud-provision-deploy/aws-resources.md](specs/002-cloud-provision-deploy/aws-resources.md).
 
 **Design in brief** (see [research.md](specs/002-cloud-provision-deploy/research.md)):
 
@@ -190,7 +192,7 @@ weekly cycles keep 100% of your data. Full validation guide:
 ```sh
 ./scripts/cloud/up.sh --bucket <name> --auto-approve   # provision + deploy
 open https://property-hunter.diegocaliri.com.ar           # Caddy gateway + Basic Auth popup
-./scripts/cloud/dashboard.sh                           # SSM tunnel → http://localhost:9000
+./scripts/cloud/dashboard.sh                           # SSM tunnel → http://localhost:9001
 ./scripts/cloud/status.sh --json                       # inventory + estimated cost
 ./scripts/cloud/deploy.sh --ref <old-tag>              # mid-cycle rollback (no re-provision)
 ./scripts/cloud/down.sh --bucket <name> --yes          # deprovision; data is kept

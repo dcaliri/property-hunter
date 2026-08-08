@@ -4,6 +4,9 @@
 # The dashboard binds 127.0.0.1:9000 inside the instance and is reachable only
 # through an authenticated SSM Session Manager tunnel (research §8: no public
 # IP, no inbound rules, no Elastic IP). Blocks while the tunnel is open.
+#
+# The local side defaults to 9001 (not 9000) so the tunnel never collides with
+# the cloud UI's own port or a local dev server. Use --local-port to override.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -13,7 +16,7 @@ cd "$ROOT"
 . scripts/cloud/lib.sh
 
 INSTANCE=""
-LOCAL_PORT=9000
+LOCAL_PORT=9001
 REGION=""
 
 usage() {
@@ -24,7 +27,7 @@ Open an SSM port-forward tunnel to the running dashboard. Blocks until closed.
 
 Options:
   --instance <id>   Target EC2 instance (default: the running property-hunter one)
-  --local-port <p>  Local port for the tunnel (default: 9000)
+  --local-port <p>  Local port for the tunnel (default: 9001)
   --region <region> AWS region (default: derived from the data volume's AZ)
   --help            Show this help and exit
 
