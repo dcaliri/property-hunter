@@ -15,6 +15,6 @@ services:
       - .env
     volumes:
       - ${DATA_DIR:-/opt/property-hunter/data}:/app/data
-    command: ui --port 9000
+    command: ui --port 9000 --host 0.0.0.0
     ports:
       - "127.0.0.1:9000:9000"

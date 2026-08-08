@@ -98,6 +98,13 @@ fi
 
 # --- Run the on-instance deploy script over SSM ------------------------------
 echo "==> Deploying to instance $INSTANCE over SSM"
+# Ship the current remote-deploy.sh to the instance first so local fixes
+# propagate without rebuilding the instance (user-data only runs at first boot).
+script_b64="$(base64 < scripts/cloud/remote/remote-deploy.sh | tr -d '\n')"
+push_cmd="printf '%s' '$script_b64' | base64 -d > /opt/property-hunter/remote-deploy.sh && chmod +x /opt/property-hunter/remote-deploy.sh"
+push_id="$(ssm_run "$INSTANCE" "$REGION" "$push_cmd")" || die "failed to send script"
+ssm_wait "$INSTANCE" "$REGION" "$push_id" 120 || fail "failed to upload remote-deploy.sh"
+
 cmd="export APP_IMAGE='$uri' DATA_DIR='/opt/property-hunter/data' REGION='$REGION'; \
 if [ -f /opt/property-hunter/remote-deploy.sh ]; then /opt/property-hunter/remote-deploy.sh; \
 else echo 'ERROR: remote-deploy.sh missing — re-run up.sh to rebuild the instance' >&2; exit 1; fi"

@@ -34,6 +34,10 @@ check() {
 if [ -n "$TF" ]; then
   check "$TF" fmt -check -recursive infra/aws || fail=1
 
+  # Discard any cached backend/state pointer so the offline init below never
+  # tries to reach the real (S3) backend — check.sh must not need AWS creds.
+  rm -f infra/aws/.terraform/terraform.tfstate infra/aws/bootstrap/.terraform/terraform.tfstate
+
   check "$TF" -chdir=infra/aws/bootstrap init -backend=false >/dev/null || fail=1
   check "$TF" -chdir=infra/aws/bootstrap validate || fail=1
 

@@ -125,7 +125,10 @@ data "aws_iam_policy_document" "ssm_params" {
       "ssm:GetParameters",
       "ssm:GetParametersByPath",
     ]
-    resources = ["arn:aws:ssm:${var.region}:*:parameter/property-hunter/*"]
+    resources = [
+      "arn:aws:ssm:${var.region}:*:parameter/property-hunter",
+      "arn:aws:ssm:${var.region}:*:parameter/property-hunter/*",
+    ]
   }
   statement {
     effect = "Allow"
@@ -171,7 +174,6 @@ resource "aws_instance" "app" {
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 10
   }
 
   tags = {

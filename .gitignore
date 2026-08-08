@@ -25,6 +25,7 @@ data/
 *.tfstate
 *.tfstate.*
 *.tfplan
+*.plan
 infra/aws/.bootstrap.env
 
 # --- Session context ---

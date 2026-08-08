@@ -21,7 +21,7 @@ APP_IMAGE="${APP_IMAGE:?APP_IMAGE is required}"
 DATA_DIR="${DATA_DIR:-/opt/property-hunter/data}"
 REGION="${REGION:-us-east-1}"
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/property-hunter}"
-VOLUME_LABEL="property-hunter-data"
+VOLUME_LABEL="ph-data"   # ext4 labels are limited to 16 chars
 
 log() { printf '[remote-deploy] %s\n' "$*"; }
 
@@ -40,7 +40,18 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 if ! docker compose version >/dev/null 2>&1; then
   log "installing compose plugin"
-  dnf install -y docker-compose-plugin >/dev/null
+  if ! dnf install -y docker-compose-plugin >/dev/null 2>&1; then
+    log "dnf package unavailable; downloading compose v2 binary"
+    mkdir -p /usr/local/libexec/docker/cli-plugins
+    case "$(uname -m)" in
+      aarch64) comp_arch=aarch64 ;;
+      x86_64)  comp_arch=x86_64 ;;
+      *)       log "ERROR: unsupported arch $(uname -m)"; exit 1 ;;
+    esac
+    curl -fsSL -o /usr/local/libexec/docker/cli-plugins/docker-compose \
+      "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-linux-${comp_arch}"
+    chmod +x /usr/local/libexec/docker/cli-plugins/docker-compose
+  fi
 fi
 systemctl enable --now docker >/dev/null 2>&1 || true
 for _ in $(seq 1 30); do
@@ -116,12 +127,10 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 log "pulling $APP_IMAGE"
 docker pull "$APP_IMAGE" >/dev/null
 
-# --- Compose file ships inside the image; extract once -----------------------
-if [ ! -f "$COMPOSE_DIR/docker-compose.cloud.yml" ]; then
-  cid="$(docker create "$APP_IMAGE")"
-  docker cp "$cid":/app/docker-compose.cloud.yml "$COMPOSE_DIR/docker-compose.cloud.yml"
-  docker rm "$cid" >/dev/null
-fi
+# --- Compose file ships inside the image; extract fresh each deploy -----------
+cid="$(docker create "$APP_IMAGE")"
+docker cp "$cid":/app/docker-compose.cloud.yml "$COMPOSE_DIR/docker-compose.cloud.yml"
+docker rm "$cid" >/dev/null
 
 # --- Start the app -----------------------------------------------------------
 log "starting scheduler + ui via compose"

@@ -64,7 +64,7 @@ ENV_APP_REF=""
 if [ -n "$ENV_INSTANCE_ID" ]; then
   inst="$(aws ec2 describe-instances --instance-ids "$ENV_INSTANCE_ID" \
     --query "Reservations[0].Instances[0]" --output json 2>/dev/null || echo null)"
-  ENV_INSTANCE_TYPE="$(printf '%s' "$inst" | python3 -c 'import json,sys; print(json.load(sys.stdin)["InstanceType"] if json.load(sys.stdin) else "")' 2>/dev/null || true)"
+  ENV_INSTANCE_TYPE="$(printf '%s' "$inst" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("InstanceType","")) if d else print("")' 2>/dev/null || true)"
   ENV_AZ="$(printf '%s' "$inst" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Placement",{}).get("AvailabilityZone","")) if d else print("")' 2>/dev/null || true)"
   ENV_APP_REF="$(printf '%s' "$inst" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t["Value"] for t in (d.get("Tags") or []) if t["Key"]=="Ref"), "")) if d else print("")' 2>/dev/null || true)"
   ENV_STATE="deployed"
@@ -74,6 +74,7 @@ fi
 ENV_RETAINED_BUCKET="$BUCKET"
 ENV_RETAINED_VOLUME="$VOLUME_ID"
 ENV_RETAINED_SIZE="$VOLUME_SIZE"
+ENV_VOLUME_SIZE="$VOLUME_SIZE"
 ENV_PUBLIC_IP=0
 [ -n "$ENV_INSTANCE_ID" ] && ENV_PUBLIC_IP=1
 ENV_GENERATED_AT="$(now_iso)"

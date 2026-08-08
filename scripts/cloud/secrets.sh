@@ -63,7 +63,13 @@ case "$CMD" in
   push)
     [ -f "$ENV_FILE" ] || fail "no .env file found at '$ENV_FILE' (copy .env.cloud.example)"
     echo "==> Pushing secrets from $ENV_FILE to ${PATH_PREFIX}/*"
-    python3 - "$ENV_FILE" "$PATH_PREFIX" <<'PY' | while IFS=$'\t' read -r name value; do
+    while IFS=$'\t' read -r name value; do
+      [ -n "$name" ] || continue
+      [ -n "$value" ] || { echo "  skipped $name (empty value)"; continue; }
+      aws ssm put-parameter --name "$name" --type SecureString --value "$value" --overwrite \
+        "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" >/dev/null || die "failed to write $name"
+      echo "  wrote $name"
+    done < <(python3 - "$ENV_FILE" "$PATH_PREFIX" <<'PY'
 import json, os, sys
 path = sys.argv[1]; prefix = sys.argv[2]
 import re
@@ -86,11 +92,7 @@ for k, v in values.items():
         continue
     print(f"{prefix}/{k}\t{v}")
 PY
-      [ -n "$name" ] || continue
-      aws ssm put-parameter --name "$name" --type SecureString --value "$value" --overwrite \
-        "${REGION_ARGS[@]}" >/dev/null || die "failed to write $name"
-      echo "  wrote $name"
-    done
+)
     echo "==> Secrets pushed (${PATH_PREFIX}/*)"
     ;;
 
@@ -100,7 +102,7 @@ PY
     fi
     echo "==> Pulling secrets from ${PATH_PREFIX}/* to $ENV_FILE"
     aws ssm get-parameters-by-path --path "$PATH_PREFIX" --with-decryption --recursive \
-      "${REGION_ARGS[@]}" --output json > /tmp/ph-secrets.json || die "failed to fetch parameters"
+      "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --output json > /tmp/ph-secrets.json || die "failed to fetch parameters"
     python3 - "$ENV_FILE" "$PATH_PREFIX" <<'PY'
 import json, sys
 out, prefix = sys.argv[1], sys.argv[2]
@@ -121,7 +123,7 @@ PY
 
   list)
     aws ssm get-parameters-by-path --path "$PATH_PREFIX" --recursive \
-      "${REGION_ARGS[@]}" --query "Parameters[].Name" --output text \
+      "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --query "Parameters[].Name" --output text \
       | tr '\t' '\n' | sed '/^$/d'
     ;;
 esac
