@@ -19,6 +19,16 @@ services:
     ports:
       - "127.0.0.1:9000:9000"
 
+  sqlite-web:
+    image: ${APP_IMAGE:?APP_IMAGE must be set to the deployed image}
+    restart: unless-stopped
+    entrypoint: []
+    command: ["sqlite_web", "-r", "-H", "0.0.0.0", "-p", "8080", "-q", "/data/property_hunter.db"]
+    volumes:
+      - ${DATA_DIR:-/opt/property-hunter/data}:/data
+    ports:
+      - "127.0.0.1:8012:8080"
+
   caddy:
     image: caddy:2
     restart: unless-stopped

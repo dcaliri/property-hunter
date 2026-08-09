@@ -12,6 +12,7 @@ COPY docker-compose.cloud.yml /app/docker-compose.cloud.yml
 COPY Caddyfile /app/Caddyfile
 
 RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir sqlite-web
 
 RUN mkdir -p /app/data
 
