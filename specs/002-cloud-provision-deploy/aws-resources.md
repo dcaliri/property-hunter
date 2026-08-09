@@ -12,33 +12,47 @@ and [research.md](research.md) for the decisions behind this design.
 
 ## Architecture at a glance
 
-```
-                              ┌────────────────────────────── AWS us-east-1 ──┐
-                              │                                              │
-   Bootstrap state (retained) │   Main stack state (ephemeral)               │
-                              │                                              │
-   ┌───────────────────────┐  │   ┌────────────── VPC 10.0.0.0/16 ─────────┐ │
-   │ S3 bucket (TF state)  │  │   │  subnet 10.0.0.0/24 (us-east-1a)       │ │
-   │ EBS volume (data)     │◄──────► attached /dev/sdf                     │ │
-   │ ECR repo (images)     │  │   │  IGW ◄─ route 0.0.0.0/0                │ │
-   └───────────────────────┘  │   │  SG (80/443 in, all out)               │ │
-                              │   │         │ attached                     │ │
-                              │   │   ┌─────▼──────────── EC2 instance ──┐ │ │
-                              │   │   │ i-0b0f… (t4g.small, AL2023 arm64)│ │ │
-                              │   │   │  public IP 3.234.254.59          │ │ │
-                              │   │   │  IAM profile (SSM/ECR/SSM params)│ │ │
-                              │   │   │  Docker compose:                 │ │ │
-                              │   │   │   caddy (80/443) ──► ui (9000)   │ │ │
-                              │   │   │   scheduler ──► run_all          │ │ │
-                              │   │   └─────┬───────────┬───────────▲────┘ │ │
-                              │   │         │  /opt/…/data mount   │       │ │
-                              │   │         └──────► SQLite (EBS) ─┘       │ │
-                              │   └────────────────────────────────────────┘ │
-                              └──────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    DNS[("Hetzner DNS<br/>property-hunter.diegocaliri.com.ar")]
+    BROWSER["Browser"]
+    TUNNEL["SSM tunnel (dashboard.sh)<br/>localhost:9001"]
 
-   External (not AWS):  domain property-hunter.diegocaliri.com.ar (Hetzner DNS)
-                        Let's Encrypt certs (auto-issued by Caddy)
-                        browser / SSM tunnel → dashboard
+    subgraph AWS["AWS us-east-1"]
+        subgraph BOOT["Bootstrap state (retained)"]
+            S3["S3 bucket<br/>TF state backend"]
+            EBS[("EBS volume<br/>vol-0b7d… · SQLite")]
+            ECR["ECR repo<br/>property-hunter images"]
+        end
+
+        SSMPARAMS["SSM Parameters<br/>/property-hunter/*"]
+
+        subgraph MAIN["Main stack (ephemeral)"]
+            subgraph VPC["VPC 10.0.0.0/16 · subnet us-east-1a"]
+                IGW["Internet gateway"]
+                RT["Route table<br/>0.0.0.0/0 → IGW"]
+                SG["Security group<br/>in: 80/443 · out: all"]
+                subgraph EC2["EC2 instance i-0b0f…<br/>t4g.small · AL2023 arm64 · IAM profile"]
+                    CADDY["caddy<br/>TLS + Basic Auth"]
+                    UI["ui<br/>127.0.0.1:9000"]
+                    SCHED["scheduler<br/>daily 09:00 UTC"]
+                end
+            end
+        end
+    end
+
+    BROWSER -->|"resolve A record"| DNS
+    BROWSER -->|"HTTPS 443"| CADDY
+    TUNNEL -.->|"port-forward :9001 → :9000"| UI
+    CADDY -->|"reverse proxy"| UI
+    UI -->|"dashboard reads"| EBS
+    SCHED -->|"run_all writes"| EBS
+    ECR -.->|"docker pull"| EC2
+    EBS -.->|"attach /dev/sdf"| EC2
+    SSMPARAMS -.->|".env at deploy"| EC2
+    IGW --> RT
+    RT -.->|"outbound egress"| EC2
+    SG -.->|"attached"| EC2
 ```
 
 ## 1. Bootstrap stack (retained — never deleted by `down`)
@@ -123,6 +137,30 @@ SG replacement in the provider).
 | `scheduler` | app image | — | Daily `run_all` cron (APScheduler, `09:00 UTC`); SQLite via EBS mount |
 
 ## 3. How they connect (data flow)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DEV as Dev machine
+    participant ECR as ECR repo
+    participant TF as Terraform
+    participant EC2 as EC2 instance
+    participant SSM as SSM Parameters
+    participant EBS as EBS volume (SQLite)
+    participant CADDY as caddy
+    participant UI as ui
+    participant SCHED as scheduler
+
+    DEV->>ECR: docker build + push (tag = git ref)
+    TF->>EC2: apply main stack (VPC / SG / IAM / attach EBS)
+    EC2->>SSM: read /property-hunter/*
+    EC2->>ECR: docker pull app image
+    EC2->>EC2: write .env · extract compose + Caddyfile
+    EC2->>EC2: docker compose up (caddy + ui + scheduler)
+    SCHED->>EBS: daily run_all → SQLite writes
+    CADDY->>UI: reverse proxy (TLS + Basic Auth)
+    UI->>EBS: dashboard reads
+```
 
 1. **Build & ship** — `docker build` on the dev machine → `docker push` to ECR
    (tagged by git ref, e.g. `9121b9a`).
