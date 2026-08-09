@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS listings (
     date_posted TEXT,
     llm_amenity_tags TEXT,
     llm_tags_updated_at TEXT,
+    llm_features TEXT,
+    llm_features_updated_at TEXT,
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -208,6 +210,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE listings ADD COLUMN lat REAL")
     if "lng" not in cols:
         conn.execute("ALTER TABLE listings ADD COLUMN lng REAL")
+    if "llm_features" not in cols:
+        conn.execute("ALTER TABLE listings ADD COLUMN llm_features TEXT")
+    if "llm_features_updated_at" not in cols:
+        conn.execute("ALTER TABLE listings ADD COLUMN llm_features_updated_at TEXT")
 
 
 class Repository:
@@ -319,6 +325,26 @@ class Repository:
                    ORDER BY o2.observed_at DESC, o2.id DESC LIMIT 1
                )
                WHERE l.is_active=1 AND l.operation=?
+               ORDER BY l.id""",
+            (operation,),
+        ))
+
+    def sale_listings_history(self, operation: str) -> list[sqlite3.Row]:
+        """All listings (active or not) with latest price and first-seen time.
+
+        Unlike ``active_listings_with_price`` this includes listings that have
+        since left the feed (e.g. sold/removed), which is the historical ground
+        truth required for temporal backtests.
+        """
+        return list(self.conn.execute(
+            """SELECT l.*,
+                      (SELECT o2.price_cents FROM observations o2
+                       WHERE o2.listing_id = l.id AND o2.is_active=1
+                       ORDER BY o2.observed_at DESC, o2.id DESC LIMIT 1) AS price_cents,
+                      (SELECT MIN(o3.observed_at) FROM observations o3
+                       WHERE o3.listing_id = l.id AND o3.is_active=1) AS listed_at
+               FROM listings l
+               WHERE l.operation=?
                ORDER BY l.id""",
             (operation,),
         ))

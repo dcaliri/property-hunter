@@ -122,6 +122,8 @@ def test_init_db_migrates_lat_lng(tmp_path):
     conn.close()
     assert "lat" in cols
     assert "lng" in cols
+    assert "llm_features" in cols
+    assert "llm_features_updated_at" in cols
 
 
 def test_detection_supersede(repo):

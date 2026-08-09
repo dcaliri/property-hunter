@@ -35,6 +35,7 @@ class ListingRecord(BaseModel):
     agency_name: str | None = None
     description: str | None = None
     llm_amenity_tags: list[str] | None = None
+    llm_features: dict | None = None
     date_posted: str | None = None
     price_cents: int = Field(ge=0)
     currency: Literal["USD", "ARS"] = "USD"

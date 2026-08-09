@@ -25,16 +25,24 @@ class LLMError(Exception):
 
 
 def complete(llm: LLMConfig, messages: list[dict], transport=None,
-             timeout_seconds: float | None = None) -> str:
-    """POST to the chat completions endpoint and return the message content."""
+             timeout_seconds: float | None = None, json_mode: bool = False) -> str:
+    """POST to the chat completions endpoint and return the message content.
+
+    ``json_mode`` requests structured JSON output via ``response_format`` (an
+    OpenAI convention honored by OpenAI, Ollama, vLLM, LM Studio, etc.). Callers
+    whose prompt asks for JSON should opt in so unparseable responses vanish.
+    """
     url = llm.base_url.rstrip("/") + "/chat/completions"
     timeout = timeout_seconds if timeout_seconds is not None else llm.timeout_seconds
     if transport is None:
         transport = httpx.Client(timeout=timeout)
+    payload: dict = {"model": llm.model, "messages": messages}
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
     try:
         resp = transport.post(
             url,
-            json={"model": llm.model, "messages": messages},
+            json=payload,
             headers={"Authorization": f"Bearer {llm.api_key}"},
         )
         resp.raise_for_status()

@@ -1,7 +1,7 @@
 """CLI entrypoint for property-hunter.
 
-Subcommands: init-db, collect, analyze, train, predict, detect, notify,
-run-all, scheduler.
+Subcommands: init-db, collect, analyze, train, predict, backtest, detect, notify,
+enrich-features, run-all, scheduler.
 """
 
 from __future__ import annotations
@@ -35,6 +35,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_train = sub.add_parser("train", help="Train the ML valuation model")
     p_train.add_argument("--min-train-samples", type=int, default=None, help="Override ML_MIN_TRAIN_SAMPLES")
     sub.add_parser("predict", help="Recompute value estimates for active listings")
+    p_backtest = sub.add_parser("backtest", help="Temporal backtest of the valuation model")
+    p_backtest.add_argument("--cutoff", default=None,
+                            help="ISO-8601 cutoff; defaults to the most recent test_split fraction")
+    p_backtest.add_argument("--min-train-samples", type=int, default=None,
+                            help="Override ML_MIN_TRAIN_SAMPLES")
+    p_backtest.add_argument("--no-llm-features", action="store_true",
+                            help="Exclude LLM-derived features (A/B comparison)")
+    p_enrich = sub.add_parser("enrich-features",
+                              help="LLM structured feature extraction for sale listings")
+    p_enrich.add_argument("--limit", type=int, default=None,
+                          help="Only process the first N missing listings (for experiments)")
     sub.add_parser("detect", help="Run opportunity detection rules")
     sub.add_parser("notify", help="Email digest of new opportunities")
     sub.add_parser("scheduler", help="Run the daily scheduler")

@@ -33,6 +33,13 @@ def _usable(rows: list) -> list:
             and (r["covered_area_m2"] or r["total_area_m2"])]
 
 
+def build_model(settings: Settings):
+    """Fresh regressor with the production hyperparameters."""
+    return HistGradientBoostingRegressor(
+        max_iter=150, learning_rate=0.08, min_samples_leaf=4,
+        random_state=settings.ml.random_state)
+
+
 def run_train(settings: Settings, repo: Repository, run_id: int | None = None) -> dict:
     created = run_id is None
     run_id = run_id or repo.create_run(trigger="train")
@@ -60,9 +67,7 @@ def run_train(settings: Settings, repo: Repository, run_id: int | None = None) -
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=settings.ml.test_split, random_state=settings.ml.random_state)
 
-    model = HistGradientBoostingRegressor(
-        max_iter=150, learning_rate=0.08, min_samples_leaf=4,
-        random_state=settings.ml.random_state)
+    model = build_model(settings)
     model.fit(X_train, y_train)
 
     y_pred_log = model.predict(X_test)

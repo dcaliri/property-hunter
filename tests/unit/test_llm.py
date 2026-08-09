@@ -11,6 +11,7 @@ import httpx
 from property_hunter.config import Settings
 from property_hunter.db import Repository, connect
 from property_hunter.llm.enrich import enrich_descriptions, parse_tags
+from property_hunter.llm.features_extract import extract_listing_features, parse_features
 from property_hunter.llm.narrative import build_narrative
 from property_hunter.models import ListingRecord, PriceObservation
 
@@ -182,3 +183,111 @@ def test_parse_tags_validates_vocabulary():
     assert parse_tags('balcón, parrilla') == ["balcón", "parrilla"]
     assert parse_tags('[]') == []
     assert parse_tags('') == []
+
+
+def test_parse_features_coerces_canonical():
+    features = parse_features(json.dumps({
+        "condition": "a refaccionar", "floor": "PB", "expensas": "120000",
+        "orientation": "norte", "has_parking": "Sí", "has_pool": False,
+        "has_gym": True, "has_terrace": "no", "has_balcony": 1,
+        "has_security": None, "hack": "dropped",
+    }))
+    assert features == {
+        "condition": "a_refaccionar", "floor": 0, "expensas": 120000,
+        "orientation": "N", "has_parking": True, "has_pool": False,
+        "has_gym": True, "has_terrace": False, "has_balcony": True,
+        "has_security": False,
+    }
+
+
+def test_parse_features_unknowns_for_garbage():
+    features = parse_features("no es json")
+    assert features["condition"] == "unknown"
+    assert features["floor"] is None
+    assert features["orientation"] is None
+    assert all(features[a] is False for a in
+               ("has_parking", "has_pool", "has_gym", "has_terrace", "has_balcony", "has_security"))
+
+
+def test_extract_features_stores_validated_json(db_path: Path):
+    repo = _repo(db_path)
+    lids = _seed_descriptions(repo, ["PH renovado, piso 3, con cochera y SUM. Expensas 90000."])
+    transport = StubLLMTransport(responses=[json.dumps({
+        "condition": "renovado", "floor": 3, "expensas": 90000, "orientation": "S",
+        "has_parking": True, "has_pool": False, "has_gym": False,
+        "has_terrace": True, "has_balcony": True, "has_security": True})])
+
+    counts = extract_listing_features(_make_settings(db_path), repo, transport=transport)
+
+    assert counts["enriched"] == 1
+    assert transport.calls[0]["json"]["response_format"] == {"type": "json_object"}
+    row = repo.get_listing(lids[0])
+    features = json.loads(row["llm_features"])
+    assert features["condition"] == "renovado"
+    assert features["floor"] == 3
+    assert features["expensas"] == 90000
+    assert features["has_parking"] is True
+    assert row["llm_features_updated_at"] is not None
+
+
+def test_extract_features_fails_open_on_error(db_path: Path):
+    repo = _repo(db_path)
+    lids = _seed_descriptions(repo, ["Aviso que falla"])
+    transport = StubLLMTransport(responses=[httpx.ReadTimeout("timeout")])
+
+    counts = extract_listing_features(_make_settings(db_path), repo, transport=transport)
+
+    assert counts["failed"] == 1
+    assert counts["enriched"] == 0
+    row = repo.get_listing(lids[0])
+    assert row["llm_features"] is None
+    assert row["llm_features_updated_at"] is None
+
+
+def test_extract_features_limit(db_path: Path):
+    repo = _repo(db_path)
+    lids = _seed_descriptions(repo, ["uno", "dos"])
+    transport = StubLLMTransport(responses=[json.dumps({"condition": "nuevo"})])
+
+    counts = extract_listing_features(_make_settings(db_path), repo, transport=transport, limit=1)
+
+    assert counts["requests"] == 1
+    assert counts["enriched"] == 1
+    assert repo.get_listing(lids[0])["llm_features_updated_at"] is not None
+    assert repo.get_listing(lids[1])["llm_features_updated_at"] is None
+
+
+def test_extract_features_skipped_without_config(db_path: Path):
+    repo = _repo(db_path)
+    lids = _seed_descriptions(repo, ["desc"])
+
+    counts = extract_listing_features(_make_settings(db_path, enabled=False), repo)
+
+    assert counts["skipped"] == 1
+    assert repo.get_listing(lids[0])["llm_features"] is None
+
+
+def test_complete_json_mode_payload():
+    from property_hunter.config import LLMConfig
+    from property_hunter.llm.client import complete
+
+    llm = LLMConfig(base_url="https://llm.example.local/v1", model="m", api_key="k")
+    messages = [{"role": "user", "content": "devuelve json"}]
+
+    transport = StubLLMTransport(responses=['{"condition":"nuevo"}'])
+    complete(llm, messages, transport=transport, json_mode=True)
+    assert transport.calls[0]["json"]["response_format"] == {"type": "json_object"}
+
+    transport = StubLLMTransport(responses=['{"condition":"nuevo"}'])
+    complete(llm, messages, transport=transport)
+    assert "response_format" not in transport.calls[0]["json"]
+
+
+def test_enrich_uses_json_mode(db_path: Path):
+    repo = _repo(db_path)
+    _seed_descriptions(repo, ["Balcón y cochera."])
+    transport = StubLLMTransport(responses=['["balcón"]'])
+
+    enrich_descriptions(_make_settings(db_path), repo, transport=transport)
+
+    assert transport.calls[0]["json"]["response_format"] == {"type": "json_object"}

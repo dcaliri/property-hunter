@@ -76,6 +76,7 @@ def enrich_descriptions(settings: Settings, repo: Repository, transport=None) ->
                 [{"role": "system", "content": _SYSTEM},
                  {"role": "user", "content": _USER.format(desc=row["description"][:4000])}],
                 transport=transport,
+                json_mode=True,
             )
             tags = parse_tags(raw)
             repo.conn.execute(

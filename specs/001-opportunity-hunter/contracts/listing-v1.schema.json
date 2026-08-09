@@ -24,6 +24,7 @@
     "agency_name": { "type": ["string", "null"] },
     "description": { "type": ["string", "null"] },
     "llm_amenity_tags": { "type": ["array", "null"], "items": { "type": "string" } },
+    "llm_features": { "type": ["object", "null"] },
     "date_posted": { "type": ["string", "null"] },
     "price_cents": { "type": "integer", "minimum": 0 },
     "currency": { "type": "string", "enum": ["USD", "ARS"] },

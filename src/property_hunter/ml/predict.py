@@ -64,7 +64,8 @@ def run_predict(settings: Settings, repo: Repository, run_id: int | None = None)
         estimate = None
         is_fallback = True
         if model is not None:
-            vec = np.array([feature_vector(row, bundle["barrios"], bundle["types"])], dtype=float)
+            vec = np.array([feature_vector(row, bundle["barrios"], bundle["types"])],
+                           dtype=float)[:, :len(bundle["feature_names"])]
             try:
                 estimate = int(round(float(np.expm1(model.predict(vec)[0]))))
                 is_fallback = False

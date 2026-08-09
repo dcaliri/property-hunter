@@ -206,6 +206,13 @@ def _collect_via_api(repo: Repository, run_id: int, search, filters: dict, page_
     return api_pages
 
 
+def _run_llm_features(settings: Settings, repo: Repository) -> dict:
+    """Structured description extraction; fail-open so a dead LLM never blocks."""
+    from property_hunter.llm.features_extract import extract_listing_features
+
+    return extract_listing_features(settings, repo)
+
+
 def run_all(settings: Settings, repo: Repository, offline: bool = False) -> dict:
     """Run the full pipeline in one pass sharing a single run_id (T045).
 
@@ -221,6 +228,7 @@ def run_all(settings: Settings, repo: Repository, offline: bool = False) -> dict
 
     stages = [
         ("collect", lambda: run_collect(settings, repo, run_id=run_id, offline=offline)),
+        ("llm-features", lambda: _run_llm_features(settings, repo)),
         ("analyze", lambda: run_analyze(settings, repo, run_id=run_id)),
         ("train", lambda: run_train(settings, repo, run_id=run_id)),
         ("predict", lambda: run_predict(settings, repo, run_id=run_id)),
