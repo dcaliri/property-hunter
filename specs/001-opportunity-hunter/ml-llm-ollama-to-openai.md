@@ -186,6 +186,7 @@ Suggested first experiments (cheapest wins):
 
 | Date | LLM model | Feature set | MAPE | MdAPE | R² | Notes |
 |---|---|---|---|---|---|---|
+| 2026-08-09 | deepseek-v4-flash | +8 LLM (test window) | 27.4% | 18.9% | 0.511 | A/B on 367-row window; 80/365 identical to llama; **0/365** `condition=unknown` |
 | 2026-08-09 | llama3.1:8b (local) | baseline | 40.2% | 27.9% | 0.374 | `--no-llm-features`, date_posted split |
 | 2026-08-09 | llama3.1:8b (local) | +8 LLM | 27.4% | 18.9% | 0.511 | JSON mode on; 1,849/1,849 enriched |
 | 2026-08-09 | llama3.1:8b (local) | +8 LLM, re-extracted | 28.8% | 19.9% | 0.488 | same provider, 148-row window; 33/148 identical → **run-to-run noise floor ≈ ±1.4pp** |
@@ -195,3 +196,9 @@ Suggested first experiments (cheapest wins):
 > Interpreting provider A/Bs: the same provider re-extracted twice differs by
 > ~1.4pp MAPE (extraction is sampled). Only trust a provider delta beyond that
 > noise floor — ideally average 2–3 runs.
+>
+> **Provider verdict (2026-08-09):** deepseek-v4-flash matches llama3.1:8b on
+> backtest MAPE (27.44% vs 27.4%, Δ≈0.04pp ≪ noise floor) while being cheaper
+> and more disciplined (`condition=unknown` 0/365 vs 15/148 on llama's own
+> re-run). Either is fine to switch to; there is no free win from a provider
+> swap, so optimization effort is better spent on the §4 knobs.

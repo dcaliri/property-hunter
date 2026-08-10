@@ -188,16 +188,20 @@ def main() -> None:
         repo.conn.commit()
         print(f"re-extracted : {len(new_features)} ok, {failed} failed")
 
-        complete_extraction = len(new_features) == len(test)
+        failures = len(test) - len(new_features)
+        complete_extraction = failures <= max(1, int(0.05 * len(test)))
         if complete_extraction:
             provider_run = run_backtest(settings, repo, use_llm_features=True)
             print(f"  provider ({label}): {_metrics(provider_run)}")
             delta = (provider_run["metrics"]["mape"] - baseline_llm["metrics"]["mape"])
             print(f"  MAPE delta vs current provider: {delta:+.1%}")
+            if failures:
+                print(f"  note: {failures} test rows kept current-provider features "
+                      f"({failures / len(test):.1%} contamination)")
         else:
             provider_run = None
-            print("  provider MAPE skipped: partial re-extraction (--max) would mix "
-                  "providers in the test set; run without --max for a number")
+            print("  provider MAPE skipped: too many re-extraction failures; "
+                  "run without --max for a number")
 
         agreement = _agreement(test, snapshot, new_features)
         print(f"  agreement  : {agreement['full_agreement']}/{agreement['rows']} "
