@@ -202,3 +202,23 @@ Suggested first experiments (cheapest wins):
 > and more disciplined (`condition=unknown` 0/365 vs 15/148 on llama's own
 > re-run). Either is fine to switch to; there is no free win from a provider
 > swap, so optimization effort is better spent on the §4 knobs.
+
+## 6. Production rollout (2026-08-10, deepseek-v4-flash)
+
+Deployed `073f6dd`; LLM was previously unconfigured in prod (the `llm-features`
+stage silently skipped, so the live model was the no-LLM baseline).
+
+- SSM params: `/property-hunter/LLM_BASE_URL=https://api.deepseek.com/v1`,
+  `LLM_MODEL=deepseek-v4-flash`, `LLM_API_KEY=<sk>`, `LLM_TIMEOUT_SECONDS=120`.
+- Backfilled all 1,859 sale listings in one detached run (~4 h, **0 failures**,
+  ~$0.25); `extract_listing_features` auto-covers anything missing, so future
+  runs only process new listings.
+- Retrained + predicted: `model_id=2` with **41 features** (LLM columns),
+  **R² 0.698** vs 0.476 for `model_id=1`; 1,859 predictions, 0 fallback.
+- The daily 09:00 UTC `run-all` now enriches new listings with DeepSeek and
+  retrains nightly; `notify` still fails (no SMTP configured) → run status
+  "partial" until email is set up.
+
+Rollback: delete the three `LLM_*` params (or blank `LLM_API_KEY`) and redeploy
+→ `llm.enabled` flips false, extraction skips; the 41-feature model keeps
+serving with zeros until the next retrain.
