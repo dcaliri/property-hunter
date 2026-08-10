@@ -47,13 +47,17 @@ fallback.
 
 | Configuration | MAPE | MdAPE | R² | Beats fallback |
 |---|---|---|---|---|
-| Baseline (no LLM features) | 31.9% | 23.8% | 0.417 | 56% of listings |
-| **+ LLM features (`llama3.1:8b`)** | **26.2%** | **19.1%** | **0.569** | **64%** |
+| Baseline (no LLM features) | 40.2% | 27.9% | 0.374 | 46% of listings |
+| **+ LLM features (`llama3.1:8b`)** | **27.4%** | **18.9%** | **0.511** | **63%** |
 
-- The 8 LLM features cut MAPE by **5.7pp** and lift R² by **+0.15** — a
+- The 8 LLM features cut MAPE by **12.8pp** and lift R² by **+0.14** — a
   material, reproducible gain on the honest temporal split.
-- Per-zone examples: Capital 32.4%→26.7%, Godoy Cruz 31.8%→26.1%, Guaymallén
-  22.0%→18.5%. Gains are broad, not driven by one barrio.
+- The base model (trained on old prices) goes stale in an inflationary market
+  and *loses to the zone-median fallback* on the temporal split (46%); the LLM
+  features carry cross-time signal (condition, amenities, age) that restores
+  it to beating the fallback 63% of the time.
+- Per-zone examples (without → with): Capital 45.0%→29.5%, Godoy Cruz
+  36.6%→27.8%, Guaymallén 34.6%→19.6%. Gains are broad, not driven by one barrio.
 - **The live production model is still the old one** (`model_id=1`, trained on
   1,833 listings, no LLM features, random-split R² 0.534). It keeps working
   during the switch (1,918 predictions, 69 fallbacks = 3.6%), so there is no
@@ -128,13 +132,13 @@ Batch API (async, up to 24 h, fine for a nightly enrich).
 
 | Metric | Now (llama, with features) | Target |
 |---|---|---|
-| MAPE | 26.2% | **≤ 22%** |
-| MdAPE | 19.1% | **≤ 17%** |
-| R² | 0.569 | **≥ 0.60** |
+| MAPE | 27.4% | **≤ 22%** |
+| MdAPE | 18.9% | **≤ 17%** |
+| R² | 0.511 | **≥ 0.60** |
 | `unknown` condition rate | 11% (legacy rows) | **≤ 2%** (new rows) |
-| LLM-feature delta vs baseline | +5.7pp MAPE | hold ≥ 5pp |
+| LLM-feature delta vs baseline | +12.8pp MAPE | hold ≥ 5pp |
 
-**Why this matters for detections:** with MAPE ~26%, the 10% undervaluation
+**Why this matters for detections:** with MAPE ~27%, the 10% undervaluation
 threshold sits *inside* the model's noise band, so many current detections are
 noise. Shrinking MAPE is what turns "undervalued" signals into real ones.
 
@@ -174,7 +178,20 @@ Suggested first experiments (cheapest wins):
 
 ## 5. Results log (append as we iterate)
 
+> Backtest split fixed 2026-08-09: the temporal key was first-seen time
+> (`listed_at`), but the local/prod DB is bulk-loaded, so that collapsed to a
+> single day (1,807/1,833 listings share one timestamp) and the split was
+> effectively random. `_split` now keys on `date_posted` (tie-safe) — the
+> numbers below are on the honest temporal split. Cutoff: 2026-06-26.
+
 | Date | LLM model | Feature set | MAPE | MdAPE | R² | Notes |
 |---|---|---|---|---|---|---|
-| 2026-08-09 | `llama3.1:8b` (local) | baseline | 31.9% | 23.8% | 0.417 | `--no-llm-features` |
-| 2026-08-09 | `llama3.1:8b` (local) | +8 LLM | 26.2% | 19.1% | 0.569 | JSON mode on; 1,849/1,849 enriched |
+| 2026-08-09 | llama3.1:8b (local) | baseline | 40.2% | 27.9% | 0.374 | `--no-llm-features`, date_posted split |
+| 2026-08-09 | llama3.1:8b (local) | +8 LLM | 27.4% | 18.9% | 0.511 | JSON mode on; 1,849/1,849 enriched |
+| 2026-08-09 | llama3.1:8b (local) | +8 LLM, re-extracted | 28.8% | 19.9% | 0.488 | same provider, 148-row window; 33/148 identical → **run-to-run noise floor ≈ ±1.4pp** |
+| 2026-08-09 | llama3.1:8b (local) | baseline (old split) | 31.9% | 23.8% | 0.417 | pre-fix, retained for reference |
+| 2026-08-09 | llama3.1:8b (local) | +8 LLM (old split) | 26.2% | 19.1% | 0.569 | pre-fix, retained for reference |
+
+> Interpreting provider A/Bs: the same provider re-extracted twice differs by
+> ~1.4pp MAPE (extraction is sampled). Only trust a provider delta beyond that
+> noise floor — ideally average 2–3 runs.

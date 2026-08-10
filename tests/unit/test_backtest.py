@@ -116,6 +116,38 @@ def test_backtest_explicit_cutoff(db_path: Path):
     assert result["metrics"]["mape"] < 0.25
 
 
+def test_split_prefers_date_posted_over_listed_at():
+    from property_hunter.ml.backtest import _split
+
+    rows = [
+        {"id": 1, "date_posted": "2026-02-01", "listed_at": "2026-01-01"},
+        {"id": 2, "date_posted": "2026-01-01", "listed_at": "2026-02-01"},
+    ]
+    train, test, _ = _split(rows, "2026-01-15", 0.5)
+
+    assert [r["id"] for r in train] == [2]
+    assert [r["id"] for r in test] == [1]
+
+
+def test_split_cutoff_reproduces_default_split_on_ties():
+    from property_hunter.ml.backtest import _split
+
+    rows = [
+        {"id": 1, "date_posted": "2026-01-01", "listed_at": "x"},
+        {"id": 2, "date_posted": "2026-01-01", "listed_at": "x"},
+        {"id": 3, "date_posted": "2026-02-01", "listed_at": "x"},
+        {"id": 4, "date_posted": "2026-02-01", "listed_at": "x"},
+        {"id": 5, "date_posted": "2026-03-01", "listed_at": "x"},
+    ]
+    train, test, cutoff = _split(rows, None, 0.4)
+
+    assert [r["id"] for r in train] == [1, 2]
+    assert [r["id"] for r in test] == [3, 4, 5]
+    train2, test2, _ = _split(rows, cutoff, 0.4)
+    assert [r["id"] for r in train2] == [1, 2]
+    assert [r["id"] for r in test2] == [3, 4, 5]
+
+
 def test_backtest_insufficient_samples(db_path: Path):
     repo = _repo(db_path)
     _seed_sale_history(repo, _synthetic_listings(5, seed=1))

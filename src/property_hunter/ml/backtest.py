@@ -1,7 +1,7 @@
 """Temporal backtest of the valuation model (US2).
 
-Trains the same regressor used in production on sale listings observed before a
-cutoff date and evaluates it against listings observed after that date. This
+Trains the same regressor used in production on sale listings posted before a
+cutoff date and evaluates it against listings posted after that date. This
 simulates "train on what we knew, predict what arrives next", which the random
 held-out split in train.py cannot measure, and it includes a naive zone
 median-per-m2 baseline so improvements are comparable.
@@ -36,15 +36,26 @@ def _zone_median_ppm2(rows: list) -> dict[tuple[str, str], float]:
 
 
 def _split(rows: list, cutoff: str | None, test_split: float) -> tuple[list, list, str]:
-    """Temporal split by first-seen date; returns (train, test, cutoff)."""
-    ordered = sorted(rows, key=lambda r: r["listed_at"] or "")
+    """Temporal split by ad posting date (fallback: first-seen); (train, test, cutoff).
+
+    Rows are ordered by ``date_posted`` (the signal the model's ``age_days``
+    feature uses). The default split takes the most recent ``test_split``
+    fraction as test and returns a cutoff that reproduces the split exactly:
+    rows sharing the boundary timestamp are kept together (all in test) so an
+    explicit ``--cutoff`` never strands the training set on a tie.
+    """
+    key = lambda r: r["date_posted"] or r["listed_at"] or ""
+    ordered = sorted(rows, key=lambda r: (key(r), r["id"]))
     if cutoff:
-        train = [r for r in ordered if (r["listed_at"] or "") < cutoff]
-        test = [r for r in ordered if (r["listed_at"] or "") >= cutoff]
+        train = [r for r in ordered if key(r) < cutoff]
+        test = [r for r in ordered if key(r) >= cutoff]
         return train, test, cutoff
     n_test = max(1, int(round(len(ordered) * test_split)))
-    split_at = ordered[-n_test]["listed_at"]
-    return ordered[:-n_test], ordered[-n_test:], split_at
+    boundary = len(ordered) - n_test
+    split_at = key(ordered[boundary])
+    while boundary > 0 and key(ordered[boundary - 1]) == split_at:
+        boundary -= 1
+    return ordered[:boundary], ordered[boundary:], split_at
 
 
 def run_backtest(settings: Settings, repo: Repository, cutoff: str | None = None,
